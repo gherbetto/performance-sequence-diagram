@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Performance Diagram | The Flow Architect</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            /* Palette */
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --accent-red: #008CC4;
+            --grid-line: rgba(226, 232, 240, 0.8);
+
+            /* Bar Colors */
+            --bg-html: #00A385;
+            --bg-dynamic: #FDA816;
+            --bg-css: #008CC4;
+            --bg-js: #A36EC9;
+            --bg-img: #916C35;
+
+            /* Logic Variables */
+            --html-width: 45%;
+            --html-radius: 0;
+            --html-text-opacity: 1;
+            --dynamic-height: 0px;
+            --dynamic-opacity: 0;
+            --stack-offset-x: 45%;
+            --marker-start-pos: 45%;
+            --marker-end-opacity: 1;
+            --marker-end-pos: 87%;
+            --marker-end-label-hide: none;
+            --marker-start-label-hide: block;
+            --marker-end-label-hide: block;
+            --marker-end-alt-label-opacity: 0;
+            --ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+            /* Bar widths (unchecked) */
+            --w-dyn: 35%;
+            --w-css: 35%;
+            --w-js: 42%;
+            --w-img: 50%;
+
+            /* Layout tokens */
+            --card-padding: 40px;
+            --header-gap: 20px;
+            --header-mb: 50px;
+            --bar-height: 34px;
+            --bar-font-size: 12px;
+            --bar-gap: 12px;
+            --diagram-pb: 60px;
+            --marker-label-bottom: -45px;
+            --marker-label-font: 11px;
+        }
+
+        /* ── Mobile overrides ── */
+        @media (max-width: 480px) {
+            :root {
+                --card-padding: 16px;
+                --header-gap: 12px;
+                --header-mb: 32px;
+                --bar-height: 28px;
+                --bar-font-size: 10px;
+                --bar-gap: 8px;
+                --diagram-pb: 70px;
+                /* more room for two-line labels */
+                --marker-label-bottom: -52px;
+                --marker-label-font: 9px;
+            }
+        }
+
+        @media (min-width: 481px) and (max-width: 680px) {
+            :root {
+                --card-padding: 24px;
+                --header-mb: 36px;
+                --bar-font-size: 11px;
+                --diagram-pb: 64px;
+                --marker-label-bottom: -48px;
+            }
+        }
+
+        /* ── Reset ── */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            line-height: 1.5;
+            display: grid;
+            place-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        /* ── Card ── */
+        .performance-chart {
+            background: var(--card-bg);
+            width: 100%;
+            max-width: 850px;
+            padding: var(--card-padding);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        /* ── Checked state ── */
+        #mode-toggle:checked~.performance-chart__diagram {
+            --html-width: 5%;
+            --html-radius: 0;
+            --html-text-opacity: 0;
+            --dynamic-height: var(--bar-height);
+            --dynamic-opacity: 1;
+            --stack-offset-x: 5%;
+            --marker-start-pos: 5%;
+            --marker-end-pos: 55%;
+            --marker-start-label-hide: none;
+            --marker-end-primary-label-opacity: 0;
+            --marker-end-alt-label-opacity: 1;
+            /* checked bar widths (desktop) */
+            --w-dyn: 35%;
+            --w-css: 35%;
+            --w-js: 42%;
+            --w-img: 50%;
+        }
+
+        /* ── Checked state — mobile widths ── */
+        @media (max-width: 480px) {
+            #mode-toggle:checked~.performance-chart__diagram {
+                --html-width: 8%;
+                --stack-offset-x: 8%;
+                --marker-start-pos: 8%;
+                --marker-end-pos: 80%;
+                --w-dyn: 52%;
+                --w-css: 52%;
+                --w-js: 60%;
+                --w-img: 72%;
+            }
+        }
+
+        @media (min-width: 481px) and (max-width: 680px) {
+            #mode-toggle:checked~.performance-chart__diagram {
+                --html-width: 6%;
+                --stack-offset-x: 6%;
+                --marker-start-pos: 6%;
+                --marker-end-pos: 68%;
+                --w-dyn: 44%;
+                --w-css: 44%;
+                --w-js: 52%;
+                --w-img: 62%;
+            }
+        }
+
+        /* ── Header & Toggle ── */
+        .performance-chart__header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--header-gap);
+            margin-bottom: var(--header-mb);
+            flex-wrap: wrap;
+            /* prevents overflow on very narrow screens */
+        }
+
+        .performance-chart__label {
+            font-size: clamp(13px, 2.5vw, 16px);
+            font-weight: 500;
+            transition: color 0.3s var(--ease);
+            color: var(--text-muted);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .performance-chart__toggle {
+            width: 56px;
+            height: 28px;
+            background-color: #cbd5e1;
+            position: relative;
+            cursor: pointer;
+            transition: background-color 0.3s var(--ease);
+            flex-shrink: 0;
+            /* never squish the toggle */
+        }
+
+        #mode-toggle:checked~.performance-chart__header .performance-chart__toggle {
+            background-color: var(--accent-red);
+        }
+
+        .marker--start .marker-label {
+            display: var(--marker-start-label-hide);
+        }
+
+        .toggle-knob {
+            width: 22px;
+            height: 22px;
+            background: white;
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            transition: transform 0.3s var(--ease);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        #mode-toggle:checked~.performance-chart__header .toggle-knob {
+            transform: translateX(28px);
+        }
+
+        #mode-toggle:not(:checked)~.performance-chart__header .label--reg {
+            color: var(--text-main);
+        }
+
+        #mode-toggle:checked~.performance-chart__header .label--comp {
+            color: var(--text-main);
+        }
+
+        /* ── Diagram area ── */
+        .performance-chart__diagram {
+            position: relative;
+            padding: 20px 0 var(--diagram-pb) 0;
+            min-height: 220px;
+        }
+
+        .grid-bg {
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+                linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+            background-size: 35px 35px;
+            z-index: 0;
+        }
+
+        /* ── Bars ── */
+        .bars-container {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            gap: var(--bar-gap);
+        }
+
+        .bar {
+            height: var(--bar-height);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: var(--bar-font-size);
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            transition: all 0.6s var(--ease);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            /* Prevent label text from forcing bar wider */
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        .bar--html {
+            background: var(--bg-html);
+            width: var(--html-width);
+            border-radius: var(--html-radius);
+        }
+
+        .bar--html span {
+            opacity: var(--html-text-opacity);
+            transition: opacity 0.3s;
+        }
+
+        .bar--dyn {
+            background: var(--bg-dynamic);
+            width: var(--w-dyn);
+            opacity: var(--dynamic-opacity);
+            height: var(--dynamic-height);
+            margin-left: var(--stack-offset-x);
+            overflow: hidden;
+        }
+
+        .bar--css {
+            background: var(--bg-css);
+            width: var(--w-css);
+            margin-left: var(--stack-offset-x);
+        }
+
+        .bar--js {
+            background: var(--bg-js);
+            width: var(--w-js);
+            margin-left: var(--stack-offset-x);
+        }
+
+        .bar--img {
+            background: var(--bg-img);
+            width: var(--w-img);
+            margin-left: var(--stack-offset-x);
+        }
+
+        /* ── Markers ── */
+        .marker {
+            position: absolute;
+            top: 0;
+            bottom: 40px;
+            border-left: 1px dashed #94a3b8;
+            z-index: 1;
+            transition: all 0.6s var(--ease);
+        }
+
+        .marker--start {
+            left: var(--marker-start-pos);
+        }
+
+        .marker--end {
+            left: var(--marker-end-pos);
+        }
+
+        .marker-label {
+            position: absolute;
+            bottom: var(--marker-label-bottom);
+            left: 50%;
+            transform: translateX(-50%);
+            white-space: nowrap;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: var(--marker-label-font);
+            color: var(--text-muted);
+            text-align: center;
+            line-height: 1.4;
+        }
+
+        /* On very narrow screens, allow marker labels to wrap
+           so they don't escape the card edge */
+        @media (max-width: 400px) {
+            .marker-label {
+                white-space: normal;
+                width: 80px;
+            }
+        }
+
+        .marker-label-primary {
+            opacity: var(--marker-end-primary-label-opacity);
+        }
+
+        .marker-label-alt {
+            opacity: var(--marker-end-alt-label-opacity);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="performance-chart">
+        <input type="checkbox" id="mode-toggle" hidden>
+
+        <div class="performance-chart__header">
+            <label for="mode-toggle" class="performance-chart__label label--reg">Обычный</label>
+            <label for="mode-toggle" class="performance-chart__toggle">
+                <div class="toggle-knob"></div>
+            </label>
+            <label for="mode-toggle" class="performance-chart__label label--comp">Композитный</label>
+        </div>
+
+        <div class="performance-chart__diagram">
+            <div class="grid-bg"></div>
+
+            <div class="marker marker--start">
+                <span class="marker-label">0.2-0.6 сек.</span>
+            </div>
+            <div class="marker marker--end">
+                <span class="marker-label marker-label-primary">2.5-4.5 сек.<br>Отображение у пользователя</span>
+                <span class="marker-label marker-label-alt">0.2-0.6 сек.<br>Отображение у пользователя</span>
+            </div>
+
+            <div class="bars-container">
+                <div class="bar bar--html"><span>HTML</span></div>
+                <div class="bar bar--dyn"><span>Динамические данные</span></div>
+                <div class="bar bar--css"><span>CSS</span></div>
+                <div class="bar bar--js"><span>JavaScript</span></div>
+                <div class="bar bar--img"><span>Изображения</span></div>
+            </div>
+        </div>
+    </div>
+
+</body>
+
+</html>
